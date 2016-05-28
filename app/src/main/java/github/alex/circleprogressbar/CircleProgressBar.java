@@ -197,7 +197,13 @@ public class CircleProgressBar extends View {
         dotPaint.setStrokeWidth(this.dotDiameter);
         invalidate();
     }
-
+    /**
+     * 给  maxProgress 设置颜色
+     */
+    public void setDotColor(int dotColor) {
+        this.dotColor = dotColor;
+        dotPaint.setColor(dotColor);
+    }
     /**
      * 给  maxProgress 设置颜色
      */
