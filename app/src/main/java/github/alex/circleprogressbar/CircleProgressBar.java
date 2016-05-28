@@ -1,34 +1,50 @@
 package github.alex.circleprogressbar;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.os.Handler;
+import android.os.Message;
+import android.os.SystemClock;
 import android.util.AttributeSet;
 import android.view.View;
 
 /**
- * Created by Administrator on 2016/4/8.
+ * Created by alex on 2016/4/8.
  */
 public class CircleProgressBar extends View {
     private final int maxProgress = 100;
-    private float firstProgress;
-    private float secondProgress;
+    private int firstProgress;
+    private int secondProgress;
     private Paint maxProgressPaint;
     private Paint firstProgressPaint;
     private Paint secondProgressPaint;
+    private Paint dotPaint;
     private int maxProgressColor;
     private int firstProgressColor;
     private int secondProgressColor;
+    private int dotColor;
     private int width;
     private int height;
-    private int maxProgressWidth;
-    private int firstProgressWidth;
-    private int secondProgressWidth;
+    private float maxProgressWidth;
+    private float firstProgressWidth;
+    private float secondProgressWidth;
+    /**小圆点的 直径*/
+    private float dotDiameter;
+
+    private RectF maxRectF;
     private RectF firstRectF;
     private RectF secondRectF;
 
+    private static final int whatFirstProgress = 100;
+    private static final int whatSecondProgress = 101;
+    private ProgressHandler progressHandler;
+
+    /**是否展示 小圆点*/
+    private boolean canDisplayDot;
     public CircleProgressBar(Context context) {
         super(context);
     }
@@ -39,6 +55,9 @@ public class CircleProgressBar extends View {
     }
 
     private void initView(Context context, AttributeSet attrs) {
+        canDisplayDot = true;
+
+        progressHandler = new ProgressHandler();
         maxProgressWidth = (int) dp2Px(20);
         maxProgressColor = Color.parseColor("#F3F3F3");
         maxProgressPaint = new Paint();
@@ -63,13 +82,23 @@ public class CircleProgressBar extends View {
         secondProgressPaint.setStrokeWidth(secondProgressWidth);
         secondProgressPaint.setColor(secondProgressColor);
 
+        dotColor = Color.parseColor("#FF5722");
+        dotDiameter =  (int) dp2Px(20);
+        dotPaint = new Paint();
+        dotPaint.setStyle(Paint.Style.FILL);
+        dotPaint.setAntiAlias(true);
+        dotPaint.setColor(dotColor);
+
         firstRectF = new RectF(0, 0, 0, 0);
         secondRectF = new RectF(0, 0, 0, 0);
+        maxRectF = new RectF(0, 0, 0, 0);
     }
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        setMeasuredDimension(measureWidth(widthMeasureSpec), measureHeight(heightMeasureSpec));
+        width = measureWidth(widthMeasureSpec);
+        height = measureHeight(heightMeasureSpec);
+        setMeasuredDimension(width, height);
     }
 
     private int measureWidth(int widthMeasureSpec) {
@@ -108,32 +137,65 @@ public class CircleProgressBar extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        // 1.圆心（x,y）坐标值
-        float centerX = (getWidth() - getPaddingLeft() - getPaddingRight()) / 2.0f;
-        float centerY = (getHeight() - getPaddingTop() - getPaddingBottom()) / 2.0f;
-        // 2.圆环半径
-        float radius;
-        int progressWidth = Math.max(Math.max(maxProgressWidth, firstProgressWidth), secondProgressWidth);
+		/*偏移量*/
+        float dMax = (dotDiameter - maxProgressWidth)*0.5F;
+        float dFirst = (dotDiameter - firstProgressWidth)*0.5F;
+        float dSecond = (dotDiameter - secondProgressWidth)*0.5F;
+		/*1.圆心（x,y）坐标值*/
+        float centerX = (width - getPaddingLeft() - getPaddingRight()) / 2.0f;
+        float centerY = (height - getPaddingTop() - getPaddingBottom()) / 2.0f;
+		/*2.圆环半径*/
+        float maxRadius = centerY - maxProgressWidth / 2;
+        float firstRadius = centerY - firstProgressWidth / 2;
+        float secondRadius = centerY - secondProgressWidth / 2;
         if (getWidth() >= getHeight()) {
-            radius = (centerY - progressWidth / 2);
+            maxRadius = centerY - maxProgressWidth / 2;
+            firstRadius = centerY - firstProgressWidth / 2;
+            secondRadius = centerY - secondProgressWidth / 2;
         } else {
-            radius = (centerX - progressWidth / 2);
+            maxRadius = centerX - maxProgressWidth / 2;
+            firstRadius = centerX - firstProgressWidth / 2;
+            secondRadius = centerX - secondProgressWidth / 2;
         }
-        canvas.drawCircle(centerX, centerY, radius , maxProgressPaint);
 
-        firstRectF.left = centerX - radius;
-        firstRectF.right = centerX + radius;
-        firstRectF.top = centerY - radius;
-        firstRectF.bottom = centerY + radius;
+        maxRectF.left =  centerX - maxRadius + dMax;
+        maxRectF.right = centerX + maxRadius - dMax;
+        maxRectF.top = centerY - maxRadius + dMax;
+        maxRectF.bottom = centerY + maxRadius - dMax;
 
-        secondRectF.left = centerX - radius;
-        secondRectF.right = centerX + radius;
-        secondRectF.top = centerY - radius;
-        secondRectF.bottom = centerY + radius;
+        firstRectF.left =  centerX - firstRadius + dFirst;
+        firstRectF.right = centerX + firstRadius - dFirst;
+        firstRectF.top = centerY - firstRadius + dFirst;
+        firstRectF.bottom = centerY + firstRadius - dFirst;
 
-        canvas.drawArc(firstRectF, 0 - 90, (float) 360 * firstProgress / (float) maxProgress, false, firstProgressPaint);
-        canvas.drawArc(secondRectF, 0 - 90, ((float) 360 * secondProgress / (float) maxProgress) , false, secondProgressPaint);
+        secondRectF.left = centerX - secondRadius + dSecond;
+        secondRectF.right = centerX + secondRadius - dSecond;
+        secondRectF.top = centerY - secondRadius + dSecond;
+        secondRectF.bottom = centerY + secondRadius - dSecond;
 
+        canvas.drawArc(maxRectF, 0, 360 , false, maxProgressPaint);
+
+        float firstAngle = (float) 360 * firstProgress / (float) maxProgress;
+        float secondAngle = ((float) 360 * secondProgress / (float) maxProgress);
+        float dotAngle =  (float) (Math.PI*secondAngle/180.0F);
+
+        canvas.drawArc(firstRectF, 0 - 90, firstAngle, false, firstProgressPaint);
+        canvas.drawArc(secondRectF, 0 - 90, secondAngle , false, secondProgressPaint);
+
+        float dotCx = (float) (width*0.5 + (width - dotDiameter)*0.5 * Math.sin(dotAngle));
+        float dotCy = (float) (height*0.5 - (height -dotDiameter) *0.5 * Math.cos(dotAngle));
+        if(canDisplayDot){
+            canvas.drawCircle(dotCx, dotCy, dotDiameter * 0.5F, dotPaint);
+        }
+
+    }
+    /**
+     * 设置 圆点 的直径，单位 dp
+     */
+    public void setDotDiameter(float dotDiameter) {
+        this.dotDiameter = dp2Px(dotDiameter);
+        dotPaint.setStrokeWidth(this.dotDiameter);
+        invalidate();
     }
 
     /**
@@ -171,14 +233,14 @@ public class CircleProgressBar extends View {
     /**
      * 获取 firstProgress  的进度值
      */
-    public float getFirstProgress() {
+    public int getFirstProgress() {
         return firstProgress;
     }
 
     /**
      * 给  firstProgress 设置进度， [0,100 ]
      */
-    public void setFirstProgress(float firstProgress) {
+    public void setFirstProgress(int firstProgress) {
         if (firstProgress > maxProgress) {
             firstProgress = maxProgress;
         } else if (firstProgress < 0) {
@@ -194,16 +256,22 @@ public class CircleProgressBar extends View {
     }
 
     /**
+     * 给  firstProgress 设置进度， [0,100 ]
+     */
+    public void setFirstProgress(int firstProgress, long delay) {
+        new ProgressThread(firstProgress, whatFirstProgress, delay).start();
+    }
+    /**
      * 获取 secondProgress  的进度值
      */
-    public float getSecondProgress() {
+    public int getSecondProgress() {
         return secondProgress;
     }
 
     /**
      * 给  secondProgress 设置进度, [0,100 ]
      */
-    public void setSecondProgress(float secondProgress) {
+    public void setSecondProgress(int secondProgress) {
         if (secondProgress > maxProgress) {
             secondProgress = maxProgress;
         } else if (secondProgress < 0) {
@@ -215,42 +283,64 @@ public class CircleProgressBar extends View {
         this.secondProgress = secondProgress;
         invalidate();
     }
+    /**
+     * 给  secondProgress 设置进度, [0,100 ]
+     */
+    public void setSecondProgress(int secondProgress, long delay) {
+        new ProgressThread(secondProgress, whatSecondProgress, delay).start();
+    }
 
-    public int getMaxProgressWidth() {
+
+    public float getMaxProgressWidth() {
         return maxProgressWidth;
+    }
+
+    /**可以展示 小圆点*/
+    public void setCanDisplayDot(boolean canDisplayDot){
+        this.canDisplayDot = canDisplayDot;
+        invalidate();
     }
 
     /**
      * 设置 Max 的宽度，单位 dp
+     * 必须在 setDotDiameter 之后调用
      */
-    public void setMaxProgressWidth(int maxProgressWidth) {
-        this.maxProgressWidth = (int) dp2Px(maxProgressWidth);
+    public void setMaxProgressWidth(float maxProgressWidth) {
+        this.maxProgressWidth = dp2Px(maxProgressWidth);
         maxProgressPaint.setStrokeWidth(this.maxProgressWidth);
         invalidate();
     }
 
-    public int getFirstProgressWidth() {
+    public float getFirstProgressWidth() {
         return firstProgressWidth;
     }
 
     /**
      * 设置 第一个进度条 的宽度，单位 dp
+     * 必须在 setDotDiameter 之后调用
      */
-    public void setFirstProgressWidth(int firstProgressWidth) {
-        this.firstProgressWidth = (int) dp2Px(firstProgressWidth);
+    public void setFirstProgressWidth(float firstProgressWidth) {
+        this.firstProgressWidth =  dp2Px(firstProgressWidth);
+        if(this.firstProgressWidth > dotDiameter){
+            this.firstProgressWidth = dotDiameter;
+        }
         firstProgressPaint.setStrokeWidth(this.firstProgressWidth);
         invalidate();
     }
 
-    public int getSecondProgressWidth() {
+    public float getSecondProgressWidth() {
         return secondProgressWidth;
     }
 
     /**
      * 设置 第二个进度条 的宽度，单位 dp
+     * 必须在 setDotDiameter 之后调用
      */
-    public void setSecondProgressWidth(int secondProgressWidth) {
-        this.secondProgressWidth = (int) dp2Px(secondProgressWidth);
+    public void setSecondProgressWidth(float secondProgressWidth) {
+        this.secondProgressWidth = dp2Px(secondProgressWidth);
+        if(this.secondProgressWidth > dotDiameter){
+            this.secondProgressWidth = dotDiameter;
+        }
         secondProgressPaint.setStrokeWidth(this.secondProgressWidth);
         invalidate();
     }
@@ -267,6 +357,55 @@ public class CircleProgressBar extends View {
      */
     private float dp2Px(float dp) {
         return dp * getContext().getResources().getDisplayMetrics().density;
+    }
+
+    private final class ProgressThread extends Thread
+    {
+        private int progress;
+        private int what;
+        private long delay;
+        public ProgressThread(int progress, int what, long delay) {
+            this.progress = progress;
+            this.what = what;
+            this.delay = delay;
+        }
+        @Override
+        public void run()
+        {
+            for (int i = 0; i < progress; i++){
+                Message msg = Message.obtain();
+                msg.arg1 = i;
+                msg.what = what;
+                progressHandler.sendMessage(msg);
+                SystemClock.sleep(delay/progress);
+            }
+        }
+    }
+    @SuppressLint("HandlerLeak")
+    private final class ProgressHandler extends Handler
+    {
+        @Override
+        public void handleMessage(Message msg)
+        {
+            super.handleMessage(msg);
+            if(whatFirstProgress == msg.what){
+                if (firstProgress > maxProgress) {
+                    firstProgress = maxProgress;
+                } else if (firstProgress < 0) {
+                    firstProgress = 0;
+                }
+                firstProgress = msg.arg1;
+                invalidate();
+            }else if(whatSecondProgress == msg.what){
+                if (secondProgress > maxProgress) {
+                    secondProgress = maxProgress;
+                } else if (secondProgress < 0) {
+                    secondProgress = 0;
+                }
+                secondProgress = msg.arg1;
+                invalidate();
+            }
+        }
     }
 
 }

@@ -1,6 +1,6 @@
 package com.alex.circleprogressbar;
 
-import android.support.v7.app.AppCompatActivity;
+import android.app.Activity;
 import android.os.Bundle;
 import android.widget.SeekBar;
 
@@ -8,7 +8,7 @@ import com.socks.library.KLog;
 
 import github.alex.circleprogressbar.CircleProgressBar;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends Activity {
     private CircleProgressBar circleProgressBar;
 
     @Override
@@ -19,11 +19,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void intView() {
-
         circleProgressBar = (CircleProgressBar) findViewById(R.id.cpb);
-        circleProgressBar.setMaxProgressWidth(10);
-        circleProgressBar.setFirstProgressWidth(20);
-        circleProgressBar.setSecondProgressWidth(30);
+        circleProgressBar.setDotDiameter(20);
+        circleProgressBar.setMaxProgressWidth(5);
+        circleProgressBar.setFirstProgressWidth(8);
+        circleProgressBar.setSecondProgressWidth(10);
+        circleProgressBar.setFirstProgress(80, 1000);
+        circleProgressBar.setSecondProgress(40, 1000);
         SeekBar sbFirst = (SeekBar) findViewById(R.id.sb_first);
         SeekBar sbSecond = (SeekBar) findViewById(R.id.sb_second);
         sbFirst.setOnSeekBarChangeListener(new MyOnSeekBarChangeListener());
@@ -39,6 +41,11 @@ public class MainActivity extends AppCompatActivity {
                 circleProgressBar.setFirstProgress(progress);
             }else if(R.id.sb_second == seekBar.getId()){
                 circleProgressBar.setSecondProgress(progress);
+            }
+            if(progress > 90){
+                circleProgressBar.setCanDisplayDot(false);
+            }else{
+                circleProgressBar.setCanDisplayDot(true);
             }
         }
 
